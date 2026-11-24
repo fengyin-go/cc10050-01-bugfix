@@ -1,0 +1,684 @@
+{
+  "id": "cc10050",
+  "domain": "数据工程",
+  "subdirection": "数据采集、爬虫与RPA",
+  "app_name": "商品价格监控采集平台",
+  "app_slug": "price-watch-collector",
+  "app_desc": "面向多区域站点的商品价格抓取、规格归一、比价计算与变价告警的采集治理平台",
+  "frontend": "vue",
+  "backend": "python",
+  "port_frontend": 5200,
+  "port_backend": 8020,
+  "modules": [
+    {
+      "key": "shop_site",
+      "name": "采集站点目录",
+      "entity": "站点配置",
+      "fields": [
+        "站点名称",
+        "站点域名",
+        "采集区域",
+        "语言标识",
+        "生效货币"
+      ],
+      "statuses": [
+        "待验证",
+        "已验证",
+        "已封禁"
+      ],
+      "actions": [
+        "验证站点",
+        "封禁站点"
+      ],
+      "action_targets": [
+        "已验证",
+        "已封禁"
+      ],
+      "metrics": [
+        "站点总数",
+        "已验证站点",
+        "已封禁站点"
+      ],
+      "desc": "管理多区域站点的采集范围与货币口径",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "price_crawler",
+      "name": "价格爬取任务",
+      "entity": "爬取任务",
+      "fields": [
+        "任务名称",
+        "目标站点",
+        "商品关键词",
+        "抓取深度",
+        "采集间隔"
+      ],
+      "statuses": [
+        "草稿",
+        "运行中",
+        "已暂停",
+        "采集失败"
+      ],
+      "actions": [
+        "启动任务",
+        "暂停任务",
+        "重试采集"
+      ],
+      "action_targets": [
+        "运行中",
+        "已暂停",
+        "采集失败"
+      ],
+      "metrics": [
+        "任务总数",
+        "运行中任务",
+        "失败任务"
+      ],
+      "desc": "按关键词与深度调度商品价格页面的抓取",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "page_parser",
+      "name": "页面解析模板",
+      "entity": "解析模板",
+      "fields": [
+        "模板名称",
+        "适用站点",
+        "选择器路径",
+        "字段映射",
+        "解析版本"
+      ],
+      "statuses": [
+        "草稿",
+        "已启用",
+        "已废弃"
+      ],
+      "actions": [
+        "启用模板",
+        "废弃模板"
+      ],
+      "action_targets": [
+        "已启用",
+        "已废弃"
+      ],
+      "metrics": [
+        "模板总数",
+        "已启用模板",
+        "解析成功量"
+      ],
+      "desc": "把商品页HTML解析为结构化价格字段",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "spec_normalizer",
+      "name": "规格归一器",
+      "entity": "规格归一规则",
+      "fields": [
+        "规则名称",
+        "源规格文本",
+        "归一规格",
+        "单位换算",
+        "映射优先级"
+      ],
+      "statuses": [
+        "草稿",
+        "已启用",
+        "已停用"
+      ],
+      "actions": [
+        "启用规则",
+        "停用规则"
+      ],
+      "action_targets": [
+        "已启用",
+        "已停用"
+      ],
+      "metrics": [
+        "规则总数",
+        "已启用规则",
+        "归一记录数"
+      ],
+      "desc": "把各平台规格文本归一为统一规格口径",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "currency_conv",
+      "name": "货币换算器",
+      "entity": "汇率快照",
+      "fields": [
+        "快照日期",
+        "源货币",
+        "目标货币",
+        "汇率值",
+        "取数来源"
+      ],
+      "statuses": [
+        "待生效",
+        "已生效",
+        "已过期"
+      ],
+      "actions": [
+        "生效快照",
+        "过期快照"
+      ],
+      "action_targets": [
+        "已生效",
+        "已过期"
+      ],
+      "metrics": [
+        "快照总数",
+        "生效快照",
+        "换算次数"
+      ],
+      "desc": "按日期汇率快照统一多币种价格口径",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "price_baseline",
+      "name": "价格基线库",
+      "entity": "价格基线",
+      "fields": [
+        "商品标识",
+        "归一规格",
+        "基线价格",
+        "采样窗口",
+        "更新时间"
+      ],
+      "statuses": [
+        "计算中",
+        "已生效",
+        "待重算"
+      ],
+      "actions": [
+        "生效基线",
+        "重算基线"
+      ],
+      "action_targets": [
+        "已生效",
+        "待重算"
+      ],
+      "metrics": [
+        "基线总数",
+        "生效基线",
+        "待重算基线"
+      ],
+      "desc": "按滚动窗口计算商品规格级的基准价格",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "price_compare",
+      "name": "比价计算器",
+      "entity": "比价结果",
+      "fields": [
+        "比价批次",
+        "商品标识",
+        "最低价站点",
+        "价差比例",
+        "计算时间"
+      ],
+      "statuses": [
+        "排队中",
+        "已计算",
+        "计算失败"
+      ],
+      "actions": [
+        "开始计算",
+        "重试计算"
+      ],
+      "action_targets": [
+        "已计算",
+        "计算失败"
+      ],
+      "metrics": [
+        "批次总数",
+        "已计算批次",
+        "失败批次"
+      ],
+      "desc": "跨站点比价并计算价差比例",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "price_alert",
+      "name": "变价告警规则",
+      "entity": "告警规则",
+      "fields": [
+        "规则名称",
+        "监控商品",
+        "价差阈值",
+        "连续次数",
+        "通知渠道"
+      ],
+      "statuses": [
+        "待生效",
+        "已生效",
+        "已关闭"
+      ],
+      "actions": [
+        "启用规则",
+        "关闭规则"
+      ],
+      "action_targets": [
+        "已生效",
+        "已关闭"
+      ],
+      "metrics": [
+        "规则总数",
+        "生效规则",
+        "今日触发"
+      ],
+      "desc": "价差超阈值时触发变价通知",
+      "page_shape": "analysis-dashboard",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "goods_registry",
+      "name": "商品登记中心",
+      "entity": "商品档案",
+      "fields": [
+        "商品标识",
+        "商品名称",
+        "品牌",
+        "类目",
+        "登记来源"
+      ],
+      "statuses": [
+        "待合并",
+        "已登记",
+        "已合并",
+        "疑似重复"
+      ],
+      "actions": [
+        "登记商品",
+        "合并档案",
+        "标记重复"
+      ],
+      "action_targets": [
+        "已登记",
+        "已合并",
+        "疑似重复"
+      ],
+      "metrics": [
+        "档案总数",
+        "已登记档案",
+        "疑似重复档案"
+      ],
+      "desc": "聚合各平台商品为统一档案并处理重复",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "sku_match",
+      "name": "规格匹配器",
+      "entity": "匹配记录",
+      "fields": [
+        "匹配批次",
+        "商品档案",
+        "候选规格",
+        "匹配置信度",
+        "匹配状态"
+      ],
+      "statuses": [
+        "待匹配",
+        "已匹配",
+        "人工复核",
+        "匹配失败"
+      ],
+      "actions": [
+        "执行匹配",
+        "转人工复核"
+      ],
+      "action_targets": [
+        "已匹配",
+        "人工复核"
+      ],
+      "metrics": [
+        "批次总数",
+        "已匹配数",
+        "待复核数"
+      ],
+      "desc": "把站点SKU匹配到商品档案的归一规格",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "sample_store",
+      "name": "页面样本库",
+      "entity": "页面样本",
+      "fields": [
+        "样本批次",
+        "站点名称",
+        "原始HTML摘要",
+        "抓取时间",
+        "样本指纹"
+      ],
+      "statuses": [
+        "已保存",
+        "已解析",
+        "已过期"
+      ],
+      "actions": [
+        "标记解析",
+        "标记过期"
+      ],
+      "action_targets": [
+        "已解析",
+        "已过期"
+      ],
+      "metrics": [
+        "样本总数",
+        "已解析样本",
+        "过期样本"
+      ],
+      "desc": "保存原始页面样本用于解析回归与回放",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "parse_audit",
+      "name": "解析质量审计",
+      "entity": "审计明细",
+      "fields": [
+        "审计时间",
+        "解析模板",
+        "样本总数",
+        "字段命中率",
+        "失败原因分布"
+      ],
+      "statuses": [
+        "正常",
+        "命中率下降",
+        "解析异常"
+      ],
+      "actions": [
+        "查看详情",
+        "忽略告警"
+      ],
+      "action_targets": [
+        "命中率下降",
+        "解析异常"
+      ],
+      "metrics": [
+        "审计批次",
+        "正常批次",
+        "异常批次"
+      ],
+      "desc": "审计解析模板的字段命中率与失败分布",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "crawl_schedule",
+      "name": "采集调度计划",
+      "entity": "调度计划",
+      "fields": [
+        "计划名称",
+        "关联任务",
+        "调度周期",
+        "下次执行",
+        "上次状态"
+      ],
+      "statuses": [
+        "待执行",
+        "执行中",
+        "已完成",
+        "执行失败"
+      ],
+      "actions": [
+        "立即执行",
+        "暂停计划"
+      ],
+      "action_targets": [
+        "执行中",
+        "待执行"
+      ],
+      "metrics": [
+        "计划总数",
+        "活跃计划",
+        "今日执行"
+      ],
+      "desc": "按周期调度价格爬取任务的执行",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "rate_limit",
+      "name": "抓取频控",
+      "entity": "频控规则",
+      "fields": [
+        "规则名称",
+        "目标站点",
+        "每分钟上限",
+        "并发上限",
+        "退避策略"
+      ],
+      "statuses": [
+        "待生效",
+        "已生效",
+        "已暂停"
+      ],
+      "actions": [
+        "启用频控",
+        "暂停频控"
+      ],
+      "action_targets": [
+        "已生效",
+        "已暂停"
+      ],
+      "metrics": [
+        "规则总数",
+        "生效规则",
+        "今日限流"
+      ],
+      "desc": "按站点维度限制抓取频率与并发",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "proxy_route",
+      "name": "代理线路池",
+      "entity": "代理线路",
+      "fields": [
+        "线路标识",
+        "线路区域",
+        "可用性评分",
+        "最近成功",
+        "连续失败"
+      ],
+      "statuses": [
+        "可用",
+        "降级",
+        "不可用"
+      ],
+      "actions": [
+        "启用线路",
+        "禁用线路"
+      ],
+      "action_targets": [
+        "可用",
+        "不可用"
+      ],
+      "metrics": [
+        "线路总数",
+        "可用线路",
+        "降级线路"
+      ],
+      "desc": "按区域与评分选择采集出口线路",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "failure_quarantine",
+      "name": "失败隔离区",
+      "entity": "隔离记录",
+      "fields": [
+        "样本指纹",
+        "失败阶段",
+        "失败原因",
+        "隔离时间",
+        "重试次数"
+      ],
+      "statuses": [
+        "待处理",
+        "重试中",
+        "已丢弃",
+        "已恢复"
+      ],
+      "actions": [
+        "立即重试",
+        "丢弃样本"
+      ],
+      "action_targets": [
+        "待处理",
+        "已丢弃"
+      ],
+      "metrics": [
+        "隔离总数",
+        "待处理数",
+        "今日恢复"
+      ],
+      "desc": "隔离解析与匹配失败的样本供延迟重试",
+      "page_shape": "dag-graph",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "price_export",
+      "name": "比价导出通道",
+      "entity": "导出任务",
+      "fields": [
+        "任务名称",
+        "商品范围",
+        "导出格式",
+        "时间范围",
+        "生成状态"
+      ],
+      "statuses": [
+        "排队中",
+        "导出中",
+        "已完成",
+        "导出失败"
+      ],
+      "actions": [
+        "开始导出",
+        "重试导出"
+      ],
+      "action_targets": [
+        "导出中",
+        "导出中"
+      ],
+      "metrics": [
+        "任务总数",
+        "已完成导出",
+        "失败导出"
+      ],
+      "desc": "把比价结果导出为离线文件",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "change_history",
+      "name": "变价历史流水",
+      "entity": "变价记录",
+      "fields": [
+        "商品标识",
+        "旧价格",
+        "新价格",
+        "变化幅度",
+        "发现时间"
+      ],
+      "statuses": [
+        "已确认",
+        "待核实",
+        "误报"
+      ],
+      "actions": [
+        "确认变价",
+        "标记误报"
+      ],
+      "action_targets": [
+        "已确认",
+        "误报"
+      ],
+      "metrics": [
+        "记录总数",
+        "已确认变价",
+        "误报记录"
+      ],
+      "desc": "记录商品价格的历次变化供追溯",
+      "page_shape": "job-timeline",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "match_review",
+      "name": "人工复核队列",
+      "entity": "复核记录",
+      "fields": [
+        "记录编号",
+        "匹配记录",
+        "复核结论",
+        "复核角色",
+        "复核时间"
+      ],
+      "statuses": [
+        "待复核",
+        "已通过",
+        "已驳回"
+      ],
+      "actions": [
+        "通过记录",
+        "驳回记录"
+      ],
+      "action_targets": [
+        "已通过",
+        "已驳回"
+      ],
+      "metrics": [
+        "记录总数",
+        "待复核记录",
+        "今日办结"
+      ],
+      "desc": "人工裁决低置信度规格匹配结果",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
+      "key": "collect_metrics",
+      "name": "采集量指标",
+      "entity": "指标记录",
+      "fields": [
+        "统计时间",
+        "站点名称",
+        "抓取量",
+        "解析量",
+        "产出量"
+      ],
+      "statuses": [
+        "正常",
+        "量级波动",
+        "断采"
+      ],
+      "actions": [
+        "查看趋势",
+        "忽略波动"
+      ],
+      "action_targets": [
+        "量级波动",
+        "断采"
+      ],
+      "metrics": [
+        "记录总数",
+        "正常时段",
+        "异常时段"
+      ],
+      "desc": "统计各站点采集-解析-产出的量级健康度",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    }
+  ]
+}
