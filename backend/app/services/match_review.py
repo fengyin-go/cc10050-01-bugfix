@@ -1,4 +1,4 @@
-"""人工复核队列领域服务：人工裁决低置信度规格匹配结果，负责复核办结、驳回联动与角色权限。
+"""人工复核队列领域服务：人工裁决低置信度规格匹配结果，负责复核办结、驳回联动与角色范围控制。
 
 数据链路位置：裁决层，消费规格匹配器与失败隔离区升级的待复核记录，
 通过的结论回填匹配记录，驳回的样本回流失败隔离区。
@@ -71,13 +71,13 @@ class MatchReviewService(BaseModuleService):
         return {"ok": True, "message": "复核已驳回，样本回流隔离区", "quarantine_id": fid}
 
     def claim_task(self, entry_id: int, role: str) -> dict[str, Any]:
-        """按角色认领待复核记录，校验角色权限。"""
+        """按角色认领待复核记录，校验角色范围。"""
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
             return {"ok": False, "message": "复核记录不存在"}
         allowed = ("规格审核员", "商品运营", "数据治理专员")
         if role not in allowed:
-            return {"ok": False, "message": f"角色 {role} 无复核权限"}
+            return {"ok": False, "message": f"角色 {role} 无复核资格"}
         entry["复核角色"] = role
         entry["pending"] = True
         return {"ok": True, "message": f"记录已由 {role} 认领"}
