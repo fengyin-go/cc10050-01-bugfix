@@ -92,7 +92,55 @@ def create_entry(module: str, payload: EntryPayload) -> ActionResult:
 
 
 @router.post("/{module}/{entry_id}/actions", response_model=ActionResult)
-def run_action(module: str, entry_id: int, payload: ActionPayload) -> ActionResult:
+def run_action(
+    module: str,
+    entry_id: int,
+    payload: ActionPayload,
+    request: Request,
+) -> ActionResult:
     service = require_service(module)
-    entry, message = service.run_action(entry_id, payload.action.strip())
-    return ActionResult(ok=entry is not None, message=message, entry=entry)
+    header_key = (
+        request.headers.get("idempotency-key")
+        or request.headers.get("x-idempotency-key")
+        or request.headers.get("x-request-id")
+        or request.headers.get("request-key")
+    )
+    outcome = service.handle_action(entry_id, payload, request_key=header_key)
+    # 透传服务层回执中的全部字段（receipt/round/export_id/quarantine_id 等），
+    # ActionResult 配置了 extra="allow"，不会丢弃专项回执。
+    return ActionResult(**outcome)
+
+
+def _extract_values(body: Any) -> dict[str, Any]:
+    if not isinstance(body, dict):
+        return {}
+    if isinstance(body.get("values"), dict):
+        values = dict(body["values"])
+        # 允许 {"values": {...}, "基线价格": 125} 时外层参数也生效
+        for k, v in body.items():
+            if k not in ("values", "remark") and k not in values:
+                values[k] = v
+        return values
+    return dict(body)
+
+
+@router.patch("/{module}/{entry_id}", response_model=ActionResult)
+async def patch_entry(module: str, entry_id: int, request: Request) -> ActionResult:
+    service = require_service(module)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    outcome = service.update_values(entry_id, _extract_values(body))
+    return ActionResult(ok=bool(outcome.get("ok")), message=str(outcome.get("message", "")),
+                        entry=outcome.get("entry"), data=outcome.get("revision"))
+
+
+@router.put("/{module}/{entry_id}", response_model=ActionResult)
+async def put_entry(module: str, entry_id: int, request: Request) -> ActionResult:
+    return await patch_entry(module, entry_id, request)
+
+
+@router.post("/{module}/{entry_id}/update", response_model=ActionResult)
+async def update_entry_alias(module: str, entry_id: int, request: Request) -> ActionResult:
+    return await patch_entry(module, entry_id, request)

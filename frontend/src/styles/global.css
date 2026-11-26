@@ -70,3 +70,38 @@ body { margin: 0; background: #f6f8fb; color: #1f2937; }
 .analysis-chart { display: flex; align-items: flex-end; gap: 8px; height: 160px; padding: 12px 0; }
 .analysis-bar { flex: 1; border-radius: 4px 4px 0 0; background: var(--brand); min-width: 24px; position: relative; transition: height 0.4s; }
 .analysis-bar span { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+/* ===== cc10050 轮次/导出绑定业务面板 ===== */
+.guide-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; line-height: 1.7; color: #1e3a8a; }
+.guide-card ol { margin: 6px 0 0; padding-left: 20px; }
+.domain-row > td { background: #f8fafc; padding: 8px 12px; }
+.domain-panel { display: flex; flex-direction: column; gap: 6px; }
+.fact-grid { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.fact { display: inline-flex; gap: 6px; align-items: baseline; font-size: 13px; }
+.fact em { font-style: normal; color: var(--muted); font-size: 12px; }
+.fact b { font-weight: 600; }
+.row-progress { margin: 0; font-size: 12.5px; color: #1d4ed8; }
+.row-error { margin: 0; font-size: 12.5px; color: #b42318; }
+.info-text { color: #15803d; }
+.panel-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn.small { padding: 3px 10px; font-size: 12.5px; }
+.strong-link { font-weight: 600; }
+.focus-row > td { background: #fef9c3 !important; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: #e2e8f0; color: #334155; }
+.badge[data-state="已确认"], .badge[data-state="已完成"], .badge[data-state="已更正"] { background: #dcfce7; color: #166534; }
+.badge[data-state="计算失败"], .badge[data-state="取数冲突"], .badge[data-state="导出失败"] { background: #fee2e2; color: #991b1b; }
+.badge[data-state="待确认"], .badge[data-state="更正中"], .badge[data-state="导出中"], .badge[data-state="排队中"] { background: #fef3c7; color: #92400e; }
+.trace-details { width: 100%; font-size: 12.5px; }
+.trace-details summary { cursor: pointer; color: var(--brand); }
+.trace-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.trace-card { border: 1px solid var(--border); border-radius: 6px; background: #fff; padding: 8px 10px; }
+.trace-card header { display: flex; gap: 10px; align-items: center; }
+.trace-card p { margin: 4px 0; }
+.trace-card ul { margin: 4px 0; padding-left: 18px; }
+.trace-card li.rejected { color: #b42318; }
+.muted { color: var(--muted); font-size: 12px; }
+.correct-box { display: inline-flex; gap: 6px; align-items: center; }
+.correct-input { width: 180px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.quote-entry { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.quote-input { flex: 1; min-width: 260px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; }
+.receipt-line { margin: 2px 0; padding: 4px 8px; background: #ecfdf5; border: 1px dashed #6ee7b7; border-radius: 6px; font-size: 12.5px; color: #065f46; }

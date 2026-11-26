@@ -1,13 +1,18 @@
-"""比价导出通道领域服务：把比价结果导出为离线文件，负责导出任务的排队、生成与失败重试。
+"""比价导出通道领域服务：把“确认轮次”的比价结果生成离线附件。
 
-数据链路位置：数据导出层，消费比价计算器的已计算批次与货币换算器的口径说明，
-产出的导出文件记录变价历史的离线备份。
+核心约束（cc10050）：
+
+* 导出请求（同一申请）始终绑定来源比价申请及其唯一确认轮次；
+* 轮次未确认 / 比价失败时，导出失败并写明“继续或仍需等候”的原因，
+  附件接口同样拒绝交付，不会把对应批次发出去；
+* 确认后重试原导出申请，仍追到同一个确认轮次，附件数据行与比价行一致。
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
 
+from app import rounds_core as rc
 from app.services.base import BaseModuleService
 from app.store import store
 
@@ -16,81 +21,95 @@ class PriceExportService(BaseModuleService):
     MODULE = "price_export"
     ENTITY = "导出任务"
     OPERATION_TERM = "导出"
-    LIST_FIELDS = ["任务名称", "商品范围", "导出格式", "时间范围", "生成状态"]
+    LIST_FIELDS = [
+        "任务名称", "商品范围", "导出格式", "时间范围", "生成状态",
+        "compare_id", "比价批次", "商品标识", "确认轮次", "等待轮次",
+        "基线金额", "基线版本", "最低价站点", "最低报价", "价差比例",
+        "失败原因", "进度说明",
+    ]
     REQUIRED_FIELDS = ["任务名称", "商品范围", "导出格式"]
     STATUS_ORDER = ["排队中", "导出中", "已完成", "导出失败"]
     ACTION_RULES = {"开始导出": "导出中", "重试导出": "导出中"}
     NEGATIVE_ACTIONS = []
 
-    # ---- 业务扩展：导出生成与口径追溯 ----
+    def create_entry(self, values: dict[str, Any]):
+        entry, missing = super().create_entry(values)
+        if entry is not None:
+            # 从比价行/接口创建时允许直接带 compare_id 绑定
+            cid = values.get("compare_id") or values.get("比价结果ID")
+            if cid not in (None, ""):
+                entry["compare_id"] = cid
+                compare = None
+                try:
+                    compare = store.find("price_compare", int(cid))
+                except (TypeError, ValueError):
+                    compare = None
+                if compare is not None:
+                    entry.setdefault("比价批次", compare.get("比价批次", ""))
+                    if not values.get("商品范围"):
+                        entry["商品范围"] = compare.get("商品标识", "")
+                    rnd = rc.confirmed_round_of(compare)
+                    if rnd is not None:
+                        entry["确认轮次"] = rnd["轮次号"]
+                    else:
+                        active = rc.active_round_of(compare)
+                        entry["等待轮次"] = (active or {}).get("轮次号", "")
+            # 宽容格式：占位/未知格式按 CSV 处理，避免样例任务卡死
+            fmt = str(entry.get("导出格式", "") or "").strip().upper()
+            entry["导出格式"] = fmt if fmt in ("CSV", "XLSX", "JSON") else "CSV"
+        return entry, missing
+
+    def handle_action(
+        self,
+        entry_id: int,
+        payload: Any,
+        *,
+        request_key: str | None = None,
+    ) -> dict[str, Any]:
+        action = (payload.action or "").strip()
+        params = rc.merged_params(payload)
+        key = request_key or payload.request_key or payload.requestId or rc.pick(
+            params, "申请单号", "apply_no", "idempotency_key"
+        )
+        idem_key = rc.idem_key("export", entry_id, key)
+        cached = rc.replay(idem_key)
+        if cached is not None and action in ("开始导出", "重试导出"):
+            return cached
+
+        if action == "开始导出":
+            defer = bool(rc.pick(params, "async", "defer")) or str(rc.pick(params, "mode") or "") == "async"
+            outcome = self.start_export(entry_id)
+            if defer and outcome.get("ok"):
+                # 异步姿态：只进入“导出中”，随后可调用完成导出/重试
+                exp = outcome["entry"]
+                exp["status"] = "导出中"
+                exp["生成状态"] = "生成中"
+                exp["pending"] = True
+                outcome["entry"] = exp
+            return rc.remember(idem_key, outcome) if key else outcome
+        if action == "重试导出":
+            outcome = rc.gate_export(entry_id, retry=True)
+            return rc.remember(idem_key, outcome) if key else outcome
+        if action in ("完成导出", "finish"):
+            ok = not bool(rc.pick(params, "failed", "ok_false"))
+            return rc.finish_export(entry_id, ok=ok)
+        return super().handle_action(entry_id, payload, request_key=key)
+
+    # ---- 兼容旧接口名 ----
 
     def start_export(self, entry_id: int) -> dict[str, Any]:
-        """开始导出：校验商品范围有已计算比价结果。"""
-        entry = store.find(self.MODULE, entry_id)
-        if entry is None:
-            return {"ok": False, "message": f"{self.ENTITY} {entry_id} 不存在"}
-        scope = entry.get("商品范围", "")
-        fmt = entry.get("导出格式", "")
-        if fmt not in ("CSV", "XLSX", "JSON"):
-            return {"ok": False, "message": f"不支持的导出格式: {fmt}"}
-        computed = [
-            c for c in store.rows("price_compare")
-            if scope in str(c.get("商品标识", "")) and c.get("status") == "已计算"
-        ]
-        if not computed:
-            entry["status"] = "导出失败"
-            entry["abnormal"] = True
-            return {"ok": False, "message": f"商品范围 {scope} 没有已计算的比价结果"}
-        entry["status"] = "导出中"
-        entry["pending"] = True
-        return {"ok": True, "message": "导出已开始", "rows": len(computed), "format": fmt}
+        outcome = rc.gate_export(entry_id, retry=False)
+        if outcome.get("ok"):
+            exp = outcome.get("entry") or {}
+            outcome["rows"] = 1
+            outcome["format"] = exp.get("导出格式", "CSV")
+        return outcome
 
-    def finish_export(self, entry_id: int, ok: bool) -> dict[str, Any]:
-        """回写导出完成状态并把备份记录写入变价历史。"""
-        entry = store.find(self.MODULE, entry_id)
-        if entry is None:
-            return {"ok": False, "message": "导出任务不存在"}
-        entry["status"] = "已完成" if ok else "导出失败"
-        entry["生成状态"] = "成功" if ok else "失败"
-        entry["abnormal"] = not ok
-        entry["pending"] = False
-        if ok:
-            rows = store.rows("change_history")
-            hid = max((int(r.get("id", 0)) for r in rows), default=0) + 1
-            rows.append({
-                "id": hid,
-                "商品标识": entry.get("商品范围", ""),
-                "旧价格": "在线比价结果",
-                "新价格": f"导出 {entry.get('导出格式', '')} 文件",
-                "变化幅度": "备份",
-                "发现时间": datetime.now(timezone.utc).isoformat(),
-                "status": "已确认",
-                "pending": False,
-                "abnormal": False,
-            })
-        return {"ok": True, "message": "导出状态已回写"}
+    def finish_export(self, entry_id: int, ok: bool) -> dict[str, Any]:  # type: ignore[override]
+        return rc.finish_export(entry_id, ok=ok)
 
     def retry_export(self, entry_id: int) -> dict[str, Any]:
-        """重试失败导出并隔离失败上下文。"""
-        entry = store.find(self.MODULE, entry_id)
-        if entry is None or entry.get("status") != "导出失败":
-            return {"ok": False, "message": "任务不存在或未失败"}
-        rows = store.rows("failure_quarantine")
-        fid = max((int(r.get("id", 0)) for r in rows), default=0) + 1
-        rows.append({
-            "id": fid,
-            "样本指纹": f"export-{entry_id}",
-            "失败阶段": "导出",
-            "失败原因": f"任务 {entry.get('任务名称', '')} 上次导出失败",
-            "隔离时间": datetime.now(timezone.utc).isoformat(),
-            "重试次数": "1",
-            "status": "重试中",
-            "pending": True,
-            "abnormal": False,
-        })
-        entry["status"] = "导出中"
-        entry["abnormal"] = False
-        return {"ok": True, "message": "导出重试已启动", "quarantine_id": fid}
+        return rc.gate_export(entry_id, retry=True)
 
     def attach_currency_note(self, entry_id: int) -> dict[str, Any]:
         """为导出任务附上货币换算口径说明。"""
@@ -140,7 +159,7 @@ class PriceExportService(BaseModuleService):
         aid = max((int(r.get("id", 0)) for r in rows), default=0) + 1
         rows.append({
             "id": aid,
-            "审计时间": datetime.now(timezone.utc).isoformat(),
+            "审计时间": rc.now_iso(),
             "解析模板": "导出通道清理",
             "样本总数": str(len(finished)),
             "字段命中率": "100.00%",

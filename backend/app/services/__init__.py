@@ -22,6 +22,12 @@ from app.services.price_export import PriceExportService
 from app.services.change_history import ChangeHistoryService
 from app.services.match_review import MatchReviewService
 from app.services.collect_metrics import CollectMetricsService
+from app.services.site_quote import (
+    PriceQuoteAliasService,
+    SiteQuoteService,
+    StationQuoteAliasService,
+)
+from app.services.ledgers import BaselineRevisionService, CompareRoundService
 
 SERVICES: dict[str, BaseModuleService] = {
     "shop_site": ShopSiteService(),
@@ -44,6 +50,19 @@ SERVICES: dict[str, BaseModuleService] = {
     "change_history": ChangeHistoryService(),
     "match_review": MatchReviewService(),
     "collect_metrics": CollectMetricsService(),
+    # cc10050：站点报价 + 轮次/版本台账，附常见命名别名
+    "site_quote": SiteQuoteService(),
+    "site_quotes": SiteQuoteService(),
+    "price_quote": PriceQuoteAliasService(),
+    "price_quotes": PriceQuoteAliasService(),
+    "station_quote": StationQuoteAliasService(),
+    "station_quotes": StationQuoteAliasService(),
+    "quotes": PriceQuoteAliasService(),
+    "compare_round": CompareRoundService(),
+    "compare_rounds": CompareRoundService(),
+    "price_compare_round": CompareRoundService(),
+    "baseline_revision": BaselineRevisionService(),
+    "baseline_revisions": BaselineRevisionService(),
 }
 
 

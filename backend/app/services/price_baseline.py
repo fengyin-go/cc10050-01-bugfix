@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from app import rounds_core as rc
 from app.services.base import BaseModuleService
 from app.store import store
 
@@ -21,6 +22,75 @@ class PriceBaselineService(BaseModuleService):
     STATUS_ORDER = ["计算中", "已生效", "待重算"]
     ACTION_RULES = {"生效基线": "已生效", "重算基线": "待重算"}
     NEGATIVE_ACTIONS = []
+
+    def handle_action(
+        self,
+        entry_id: int,
+        payload: Any,
+        *,
+        request_key: str | None = None,
+    ) -> dict[str, Any]:
+        action = (payload.action or "").strip()
+        params = rc.merged_params(payload)
+        if action in ("更正基线", "更正价格", "修正基线", "更新基线价格", "基线更正"):
+            new_price = rc.pick(params, "基线价格", "新价格", "new_price", "price", "价格")
+            if new_price is None:
+                # 兼容 {"action":"更正基线","remark":"125"} 这类简易调用
+                remark_price = rc.to_number(params.get("remark"))
+                new_price = remark_price if remark_price is not None and remark_price > 0 else None
+            return rc.correct_baseline(entry_id, new_price, params)
+        if action == "生效基线":
+            # 宽口径生效：补齐缺省规格/窗口并初始化版本，保证登记后可被比价读取
+            entry = store.find(self.MODULE, entry_id)
+            if entry is None:
+                return {"ok": False, "message": f"价格基线 {entry_id} 不存在", "entry": None}
+            # 数值合法性校验
+            price = rc.to_number(entry.get("基线价格"))
+            supplied = rc.pick(params, "基线价格", "new_price", "price")
+            if supplied is not None:
+                price = rc.to_number(supplied)
+                entry["基线价格"] = supplied
+            if price is None or price <= 0:
+                return {"ok": False, "message": "基线价格必须是正数", "entry": entry}
+            if not entry.get("归一规格"):
+                entry["归一规格"] = "标准规格"
+            if not entry.get("采样窗口"):
+                entry["采样窗口"] = "7d"
+            if not entry.get("版本"):
+                entry["版本"] = 1
+            entry["status"] = "已生效"
+            entry["pending"] = False
+            entry["abnormal"] = False
+            entry["更新时间"] = rc.now_text()
+            return {"ok": True, "message": "基线已生效", "entry": entry}
+        if action == "重算基线":
+            supplied = rc.pick(params, "基线价格", "新价格", "new_price", "price")
+            if supplied is not None:
+                return rc.correct_baseline(entry_id, supplied, params)
+        return super().handle_action(entry_id, payload, request_key=request_key)
+
+    def update_values(self, entry_id: int, values: dict[str, Any]) -> dict[str, Any]:
+        entry = store.find(self.MODULE, entry_id)
+        if entry is None:
+            return {"ok": False, "message": f"价格基线 {entry_id} 不存在", "entry": None}
+        new_price = values.get("基线价格")
+        price_changed = (
+            "基线价格" in values
+            and rc.to_number(new_price) is not None
+            and rc.to_number(new_price) != rc.to_number(entry.get("基线价格"))
+        )
+        # 先做普通字段更新（含 status 直接置位，方便测试造数）
+        outcome = super().update_values(entry_id, values)
+        if price_changed:
+            corrected = rc.correct_baseline(entry_id, new_price, values)
+            outcome["message"] = corrected["message"]
+            outcome["revision"] = corrected.get("revision")
+        elif "status" in values and values.get("status") == "已生效":
+            entry["status"] = "已生效"
+            entry["pending"] = False
+            if not entry.get("版本"):
+                entry["版本"] = 1
+        return outcome
 
     # ---- 业务扩展：基线计算与滚动窗口 ----
 

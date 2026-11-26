@@ -71,6 +71,30 @@ class BaseModuleService:
         entry["abnormal"] = action in self.NEGATIVE_ACTIONS
         return entry, f"{self.ENTITY}已{action}"
 
+    # ---- 富动作分派：默认仍走通用状态流转，重点模块覆盖 ----
+
+    def handle_action(
+        self,
+        entry_id: int,
+        payload: Any,
+        *,
+        request_key: str | None = None,
+    ) -> dict[str, Any]:
+        entry, message = self.run_action(entry_id, payload.action.strip())
+        return {"ok": entry is not None, "message": message, "entry": entry}
+
+    def update_values(self, entry_id: int, values: dict[str, Any]) -> dict[str, Any]:
+        """通用局部更新：默认放行字段白名单/行内已有键，id 不允许改。"""
+        entry = store.find(self.MODULE, entry_id)
+        if entry is None:
+            return {"ok": False, "message": f"{self.ENTITY} {entry_id} 不存在或已归档", "entry": None}
+        for key, value in values.items():
+            if key == "id":
+                continue
+            if key in self.LIST_FIELDS or key in entry or key in ("status", "pending", "abnormal"):
+                entry[key] = value
+        return {"ok": True, "message": f"{self.ENTITY}已更新", "entry": entry}
+
     def domain_snapshot(self) -> dict[str, Any]:
         """输出模块级数据质量快照，供跨模块消费和题位源码锚点使用。"""
         rows = store.rows(self.MODULE)

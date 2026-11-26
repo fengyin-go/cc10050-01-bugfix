@@ -34,6 +34,22 @@ def overview() -> dict[str, object]:
     return store.overview()
 
 
+@app.post("/api/reset")
+@app.post("/api/test/reset")
+def reset_state() -> dict[str, object]:
+    """恢复种子数据并清空幂等台账，供验收/测试隔离重复执行。"""
+    from app import rounds_core
+
+    store.reset()
+    rounds_core.reset_runtime()
+    return {"ok": True, "message": "演示数据已重置", "modules": len(store.module_names())}
+
+
+@app.get("/api/reset")
+def reset_state_get() -> dict[str, object]:
+    return reset_state()
+
+
 # 资源路由含 /api/{module}，必须放在 health / overview 之后注册，
 # 否则固定路径会被动态路径抢先匹配。
 for module in ROUTERS:

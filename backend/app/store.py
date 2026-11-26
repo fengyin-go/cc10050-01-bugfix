@@ -11,12 +11,20 @@ from app.seed import SEED_ROWS
 
 class Store:
     def __init__(self) -> None:
-        self._tables: dict[str, list[dict[str, Any]]] = {
+        self._tables: dict[str, list[dict[str, Any]]] = {}
+        self.reset()
+
+    def reset(self) -> None:
+        """恢复到种子数据，供 /api/reset 与测试隔离使用。"""
+        self._tables = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
+
+    def has_table(self, module: str) -> bool:
+        return module in self._tables
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
